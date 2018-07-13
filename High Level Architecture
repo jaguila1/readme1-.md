@@ -1,0 +1,156 @@
+Technical Overview
+High Level Architecture
+The application is just a simplistic monolithic application built with several layers. In summary, back-end is written in Java which connects to a back-end in-memory relational database (HSQL). Can also connect to other relational databases (MySQL). Application is scafolded by Spring Framework. Model-View-Controller (MVC) architectural pattern is used to separate the front-end from the back-end. This is achieved by Spring Web MVC. This application would then be deployed on an embedded web container (Apache Tomcat).
+
+Image of High Level Architecture
+
+Front End
+The front-end is plainly JSP with a bit of JSTL here and there. Dandelion Databases also used to implement tables in the UI. Basic CSS for styling. Bootstrap provides the front-end framework for this.
+
+Back End
+The back-end is completely built using Java (Java 8 compiled)
+It is bootstrapped by Spring Framework
+Database is a RDBMS (Relational Database Management System):
+default in memory-db (HSQL)
+MySQL supported too
+Spring Data JPA provides the Data Access Abstraction
+Persistence done using JPA (Hibernate the implementation)
+JSP serves front-end html content...
+Databse Design
+[TBD]
+
+Application Patterns
+Transaction Script Pattern
+This application is very simple. It is a web application that currently provides basic CRUD operations. Everything operational is viewed as a business transaction which is executed down through the various layers. Therefore, an anemic domain model is used as opposed to a pure object-oriented domain model. This is sufficient and ideal because at this moment there is not much (if any) complex business logic processing that is required.
+
+Service Layer Pattern
+Defining the application's boundary and setting the available operations from the perspective of interfacing client layers (front-end). It encapsulates the application's business logic, controlling transactions and coor-dinating responses in the implementation of its operations.
+
+e.g.
+
+@Service("itemServiceImpl")
+@Transactional
+public class ItemServiceImpl implements ItemService {
+
+	@Autowired
+	private ItemRepository itemRepository;
+		
+	...
+
+}
+Repository Pattern
+An object-oriented view of the data store underneath providing an extra layer of abstraction (Spring Data JPA) in front of the data access capabilities of the Data Mapper pattern. Object Relational Mapping framework (Hibernate) is used to achieve this effect of mapping the differences between relational database tables and the domain model. JPA's entity manager encapsulates the data access element (Data Access Object pattern).
+
+e.g. of a Spring Data JPA Repository
+
+@Repository
+public interface ItemRepository extends JpaRepository<Item, Integer> {
+
+}
+Declarative Programming
+Spring Framework's annotation support (component scanning) is done to do this taking advantage of Spring Framework's core abilities - Dependency Injection provided by the Inversion of Control (IOC) container.
+
+@Controller
+public class OrderController {
+
+	private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
+
+	@Autowired
+	@Qualifier("orderServiceImpl")
+	private OrderService orderService;
+
+	@Autowired
+	@Qualifier("customerServiceImpl")
+	private CustomerService customerService;
+
+	@Autowired
+	@Qualifier("itemServiceImpl")
+	private ItemService itemService;
+
+	@Autowired
+	@Qualifier("orderFormValidator")
+	private OrderFormValidator orderFormValidator;
+Another example from the Customer model object:
+
+@Entity
+@Table(name = "customer")
+@Getter
+@Setter
+@NoArgsConstructor
+@EqualsAndHashCode(exclude = "orders")
+@ToString
+public class Customer {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "customer_id")
+    private int customerId;
+
+	@NotNull(message = "{error.null.firstname}")
+	@NotBlank(message = "{error.blank.firstname}")
+	@NotEmpty(message = "{error.empty.firstname}")
+	@Pattern(regexp = "[a-zA-Z]*", message = "{error.invalid.firstname}")
+    @Column(name = "customer_firstname", nullable = false, length = 50)
+	private String firstName;
+
+	@NotNull(message = "{error.null.lastname}")
+	@NotBlank(message = "{error.blank.lastname}")
+	@NotEmpty(message = "{error.empty.lastname}")
+	@Pattern(regexp = "[a-zA-Z]*", message = "{error.invalid.lastname}")
+    @Column(name = "customer_lastname", nullable = false, length = 50)
+	private String lastName;
+Lombok Project used to generate getters/setters/toString/equals and hashcode to remove the boilerplate code
+
+Security issues
+The application enables login/logout feature which was implemented using the basic features of the Spring Security module of the Spring Framework.
+
+The following application-security.xml Spring configuration file shows key security configurations:
+
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+             xmlns:beans="http://www.springframework.org/schema/beans"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.springframework.org/schema/beans
+	http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	http://www.springframework.org/schema/security
+	http://www.springframework.org/schema/security/spring-security-3.2.xsd">
+
+    <http auto-config="true">
+
+        <!-- items -->
+        <intercept-url pattern="/items" access="ROLE_TEST_USER,ROLE_ADMIN" />
+        <intercept-url pattern="/items/create" access="ROLE_TEST_USER,ROLE_ADMIN" />
+        <intercept-url pattern="/items/createItem" access="ROLE_TEST_USER,ROLE_ADMIN" />
+
+        ....
+
+        <form-login
+            login-page="/login"
+            default-target-url="/customers"
+            authentication-failure-url="/login?error"
+            username-parameter="username"
+            password-parameter="password"
+        />
+
+        <logout logout-success-url="/login?logout" />
+
+        <csrf/>
+
+    </http>
+
+    <authentication-manager>
+        <authentication-provider>
+            <user-service>
+                <!-- hard coding application user credentials - switch to DB or LDAP -->
+                <user name="testUser" password="password" authorities="ROLE_TEST_USER" />
+                <user name="admin" password="password" authorities="ROLE_ADMIN" />
+            </user-service>
+        </authentication-provider>
+    </authentication-manager>
+
+</beans:beans>
+Testing
+Integration Testing
+Integration Testing is implemented using Spring's Test Context Framework. An in-memory Database (HSQL) is used.
+
+End 2 End Testing
+End 2 End Testing (Acceptance Testing) is done using Cucumber-JVM. This is available under the test-automation sub module. The intent of this is to provide end to end automation of the full stack web application. Maybe, can integrate Selenium in the future which would allow automation of the web application on web browsers. But for now, cucumber tests are written in the back-end code. Acceptance criterias are written in the .feature files using the Gherkin language. This area needs improvement. Note that End 2 End testing for this project is still WIP.
